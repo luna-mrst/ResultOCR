@@ -1,3 +1,10 @@
+var __spreadArrays = (this && this.__spreadArrays) || function () {
+    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
+    for (var r = Array(s), k = 0, i = 0; i < il; i++)
+        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
+            r[k] = a[j];
+    return r;
+};
 var MIN_WIDTH = 3;
 var MIN_HEIGHT = 3;
 var SelectArea = /** @class */ (function () {
@@ -38,6 +45,10 @@ var SelectArea = /** @class */ (function () {
     return SelectArea;
 }());
 var selectedArea = new SelectArea();
+var supportTouch = "ontouchend" in document;
+var EVENTNAME_START = supportTouch ? "ontouchstart" : "onmousedown";
+var EVENTNAME_MOVE = supportTouch ? "ontouchmove" : "onmousemove";
+var EVENTNAME_END = supportTouch ? "ontouchend" : "onmouseup";
 var getTurningAround = function (color) {
     if (color >= 88 && color <= 168) {
         return 255;
@@ -46,6 +57,18 @@ var getTurningAround = function (color) {
         return 255 - color;
     }
 };
+var convertMap = new Map([
+    ["①", "1"],
+    ["②", "2"],
+    ["③", "3"],
+    ["④", "4"],
+    ["⑤", "5"],
+    ["⑥", "6"],
+    ["⑦", "7"],
+    ["⑧", "8"],
+    ["⑨", "9"],
+    ["⓪", "0"],
+]);
 document.addEventListener("DOMContentLoaded", function () {
     var input = document.getElementById("input");
     var image = document.getElementById("img_source");
@@ -53,7 +76,10 @@ document.addEventListener("DOMContentLoaded", function () {
     var srcContext = srcCanvas.getContext("2d");
     var selectedCanvas = document.getElementById("selected");
     var selectedContext = selectedCanvas.getContext("2d");
-    if (!srcContext || !selectedContext)
+    var binCanvas = document.getElementById("bin");
+    var binContext = binCanvas.getContext("2d");
+    var result = document.getElementById("result");
+    if (!srcContext || !selectedContext || !binContext)
         return;
     input.addEventListener("change", function () {
         var _a;
@@ -72,33 +98,41 @@ document.addEventListener("DOMContentLoaded", function () {
         };
         reader.readAsDataURL(inputFile);
     });
-    var onMouseDown = function (e) {
+    var onPointerDown = function (e) {
         var target = e.target;
         if (!(target instanceof HTMLCanvasElement))
             return;
+        e.preventDefault();
         // 座標の取得
         var rect = target.getBoundingClientRect();
-        var x = e.clientX - rect.left;
-        var y = e.clientY - rect.top;
+        var x = (e instanceof MouseEvent ? e.clientX : e.changedTouches[0].clientX) -
+            rect.left;
+        var y = (e instanceof MouseEvent ? e.clientY : e.changedTouches[0].clientY) -
+            rect.top;
         selectedArea.mouseDown(x, y);
         // 矩形の枠色反転
         var imageData = srcContext === null || srcContext === void 0 ? void 0 : srcContext.getImageData(x, y, 1, 1);
-        srcContext.strokeStyle = "rgb(" + getTurningAround(imageData.data[0]) + "," + getTurningAround(imageData.data[1]) + "," + getTurningAround(imageData.data[2]) + ")";
+        srcContext.strokeStyle = "black";
         // 線の太さを指定
         srcContext.lineWidth = 2;
         // 矩形の枠線を点線にする
         srcContext.setLineDash([2, 3]);
     };
-    var onMouseMove = function (e) {
+    var onPointerMove = function (e) {
         if (!selectedArea.isMouseDown())
             return;
+        if (e instanceof TouchEvent && e.changedTouches.length > 1)
+            return;
+        e.preventDefault();
         var target = e.target;
         if (!(target instanceof HTMLCanvasElement))
             return;
         // 座標の取得
         var rect = target.getBoundingClientRect();
-        var x = e.clientX - rect.left;
-        var y = e.clientY - rect.top;
+        var x = (e instanceof MouseEvent ? e.clientX : e.changedTouches[0].clientX) -
+            rect.left;
+        var y = (e instanceof MouseEvent ? e.clientY : e.changedTouches[0].clientY) -
+            rect.top;
         selectedArea.mouseMove(x, y);
         var _a = selectedArea.getSelectedArea(), startX = _a.startX, startY = _a.startY, endX = _a.endX, endY = _a.endY;
         // 元画像の再描画
@@ -119,20 +153,14 @@ document.addEventListener("DOMContentLoaded", function () {
         srcContext.lineTo(startX, endY);
         srcContext.stroke();
     };
-    var onMouseUp = function (e) {
-        var _a = selectedArea.getSelectedArea(), startX = _a.startX, startY = _a.startY, endX = _a.endX, endY = _a.endY;
-        // キャンバスの範囲外は無効
-        if (startX === endX && startY === endY) {
-            alert("hoge");
-            srcContext.drawImage(image, 0, 0);
-            selectedArea.init();
-            selectedCanvas.width = selectedCanvas.height = 0;
-        }
+    var onPointerUp = function (e) {
         if (!selectedArea.isMouseDown)
             return;
+        e.preventDefault();
+        var _a = selectedArea.getSelectedArea(), startX = _a.startX, startY = _a.startY, endX = _a.endX, endY = _a.endY;
         // 選択範囲のサイズを取得
-        selectedCanvas.width = Math.abs(startX - endX);
-        selectedCanvas.height = Math.abs(startY - endY);
+        selectedCanvas.width = binCanvas.width = Math.abs(startX - endX);
+        selectedCanvas.height = binCanvas.height = Math.abs(startY - endY);
         // 指定サイズ以下は無効
         if (selectedCanvas.width < MIN_WIDTH &&
             selectedCanvas.height < MIN_HEIGHT) {
@@ -145,13 +173,29 @@ document.addEventListener("DOMContentLoaded", function () {
         selectedContext.drawImage(image, Math.min(startX, endX), Math.min(startY, endY), Math.max(startX - endX, endX - startX), Math.max(startY - endY, endY - startY), 0, 0, selectedCanvas.width, selectedCanvas.height);
         selectedArea.init();
     };
-    srcCanvas.onmousedown = onMouseDown;
-    srcCanvas.onmousemove = onMouseMove;
-    srcCanvas.onmouseup = onMouseUp;
+    srcCanvas[EVENTNAME_START] = onPointerDown;
+    srcCanvas[EVENTNAME_MOVE] = onPointerMove;
+    srcCanvas[EVENTNAME_END] = onPointerUp;
     var btn = document.getElementById("submit");
     btn.addEventListener("click", function () {
-        var image = document.createElement("img");
-        image.src = selectedCanvas.toDataURL();
-        document.body.appendChild(image);
+        var imageData = selectedCanvas.toDataURL();
+        // 選択範囲の二値化
+        var src = selectedContext.getImageData(0, 0, selectedCanvas.width, selectedCanvas.height);
+        var dst = selectedContext.createImageData(selectedCanvas.width, selectedCanvas.height);
+        for (var i = 0; i < src.data.length; i += 4) {
+            var tmp = 0.2126 * src.data[i] +
+                0.7152 * src.data[i + 1] +
+                0.0722 * src.data[i + 2];
+            var y = Math.floor(tmp) > 220 ? 255 : 0;
+            dst.data[i] = dst.data[i + 1] = dst.data[i + 2] = y;
+            dst.data[i + 3] = src.data[i + 3];
+        }
+        binContext.putImageData(dst, 0, 0);
+        Tesseract.recognize(imageData, "jpn").then(function (_a) {
+            var text = _a.data.text;
+            var convertedText = new String(__spreadArrays(text).filter(function (c) { return c !== " "; })
+                .map(function (c) { return (convertMap.has(c) ? convertMap.get(c) : c); }));
+            result.value += convertedText + "\n";
+        });
     });
 });

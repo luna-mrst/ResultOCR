@@ -1,3 +1,5 @@
+declare var Tesseract: any;
+
 const MIN_WIDTH = 3;
 const MIN_HEIGHT = 3;
 
@@ -44,6 +46,12 @@ class SelectArea {
 
 const selectedArea = new SelectArea();
 
+const supportTouch = "ontouchend" in document;
+
+const EVENTNAME_START = supportTouch ? "ontouchstart" : "onmousedown";
+const EVENTNAME_MOVE = supportTouch ? "ontouchmove" : "onmousemove";
+const EVENTNAME_END = supportTouch ? "ontouchend" : "onmouseup";
+
 const getTurningAround = (color: number) => {
   if (color >= 88 && color <= 168) {
     return 255;
@@ -51,6 +59,19 @@ const getTurningAround = (color: number) => {
     return 255 - color;
   }
 };
+
+const convertMap = new Map<string, string>([
+  ["①", "1"],
+  ["②", "2"],
+  ["③", "3"],
+  ["④", "4"],
+  ["⑤", "5"],
+  ["⑥", "6"],
+  ["⑦", "7"],
+  ["⑧", "8"],
+  ["⑨", "9"],
+  ["⓪", "0"],
+]);
 
 document.addEventListener("DOMContentLoaded", () => {
   const input = document.getElementById("input") as HTMLInputElement;
@@ -61,7 +82,10 @@ document.addEventListener("DOMContentLoaded", () => {
     "selected"
   ) as HTMLCanvasElement;
   const selectedContext = selectedCanvas.getContext("2d");
-  if (!srcContext || !selectedContext) return;
+  const binCanvas = document.getElementById("bin") as HTMLCanvasElement;
+  const binContext = binCanvas.getContext("2d");
+  const result = document.getElementById("result") as HTMLTextAreaElement;
+  if (!srcContext || !selectedContext || !binContext) return;
 
   input.addEventListener("change", () => {
     const inputFile = input.files?.[0];
@@ -82,39 +106,49 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsDataURL(inputFile);
   });
 
-  const onMouseDown = (e: MouseEvent) => {
+  const onPointerDown = (e: MouseEvent | TouchEvent) => {
     const target = e.target;
     if (!(target instanceof HTMLCanvasElement)) return;
 
+    e.preventDefault();
+
     // 座標の取得
     const rect = target.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x =
+      (e instanceof MouseEvent ? e.clientX : e.changedTouches[0].clientX) -
+      rect.left;
+    const y =
+      (e instanceof MouseEvent ? e.clientY : e.changedTouches[0].clientY) -
+      rect.top;
     selectedArea.mouseDown(x, y);
 
     // 矩形の枠色反転
     const imageData = srcContext?.getImageData(x, y, 1, 1);
-    srcContext.strokeStyle = `rgb(${getTurningAround(
-      imageData.data[0]
-    )},${getTurningAround(imageData.data[1])},${getTurningAround(
-      imageData.data[2]
-    )})`;
+    srcContext.strokeStyle = `black`;
     // 線の太さを指定
     srcContext.lineWidth = 2;
     // 矩形の枠線を点線にする
     srcContext.setLineDash([2, 3]);
   };
 
-  const onMouseMove = (e: MouseEvent) => {
+  const onPointerMove = (e: MouseEvent | TouchEvent) => {
     if (!selectedArea.isMouseDown()) return;
+
+    if (e instanceof TouchEvent && e.changedTouches.length > 1) return;
+
+    e.preventDefault();
 
     const target = e.target;
     if (!(target instanceof HTMLCanvasElement)) return;
 
     // 座標の取得
     const rect = target.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x =
+      (e instanceof MouseEvent ? e.clientX : e.changedTouches[0].clientX) -
+      rect.left;
+    const y =
+      (e instanceof MouseEvent ? e.clientY : e.changedTouches[0].clientY) -
+      rect.top;
     selectedArea.mouseMove(x, y);
     const { startX, startY, endX, endY } = selectedArea.getSelectedArea();
 
@@ -139,14 +173,16 @@ document.addEventListener("DOMContentLoaded", () => {
     srcContext.stroke();
   };
 
-  const onMouseUp = (e: MouseEvent) => {
+  const onPointerUp = (e: Event) => {
     if (!selectedArea.isMouseDown) return;
+
+    e.preventDefault();
 
     const { startX, startY, endX, endY } = selectedArea.getSelectedArea();
 
     // 選択範囲のサイズを取得
-    selectedCanvas.width = Math.abs(startX - endX);
-    selectedCanvas.height = Math.abs(startY - endY);
+    selectedCanvas.width = binCanvas.width = Math.abs(startX - endX);
+    selectedCanvas.height = binCanvas.height = Math.abs(startY - endY);
 
     // 指定サイズ以下は無効
     if (
@@ -175,13 +211,45 @@ document.addEventListener("DOMContentLoaded", () => {
     selectedArea.init();
   };
 
-  srcCanvas.onmousedown = onMouseDown;
-  srcCanvas.onmousemove = onMouseMove;
-  srcCanvas.onmouseup = onMouseUp;
+  srcCanvas[EVENTNAME_START] = onPointerDown;
+  srcCanvas[EVENTNAME_MOVE] = onPointerMove;
+  srcCanvas[EVENTNAME_END] = onPointerUp;
 
   const btn = document.getElementById("submit") as HTMLButtonElement;
   btn.addEventListener("click", () => {
     const imageData = selectedCanvas.toDataURL();
-    // TODO: imageDataをAPIに送信してOCRするんじゃー！    
+
+    // 選択範囲の二値化
+    const src = selectedContext.getImageData(
+      0,
+      0,
+      selectedCanvas.width,
+      selectedCanvas.height
+    );
+    const dst = selectedContext.createImageData(
+      selectedCanvas.width,
+      selectedCanvas.height
+    );
+    for (let i = 0; i < src.data.length; i += 4) {
+      const tmp =
+        0.2126 * src.data[i] +
+        0.7152 * src.data[i + 1] +
+        0.0722 * src.data[i + 2];
+      const y = Math.floor(tmp) > 220 ? 255 : 0;
+      dst.data[i] = dst.data[i + 1] = dst.data[i + 2] = y;
+      dst.data[i + 3] = src.data[i + 3];
+    }
+    binContext.putImageData(dst, 0, 0);
+
+    Tesseract.recognize(imageData, "jpn").then(
+      ({ data: { text } }: { data: { text: string } }) => {
+        const convertedText = new String(
+          [...text]
+            .filter((c) => c !== " ")
+            .map((c) => (convertMap.has(c) ? convertMap.get(c) : c))
+        );
+        result.value += `${convertedText}\n`;
+      }
+    );
   });
 });
