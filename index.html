@@ -4,24 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
-    <script src="./script.js"></script>
     <script src="https://unpkg.com/tesseract.js@v2.1.0/dist/tesseract.min.js"></script>
+    <script src="./dist/script.js"></script>
   </head>
   <body>
     <p>
       <input type="file" id="input" accept="image/*" />
     </p>
     <img id="img_source" style="display: none;" />
+    <p>元ファイル</p>
     <p>
       <canvas id="src" width="0" height="0"></canvas>
     </p>
+    <p>読み取り範囲</p>
     <p>
       <canvas id="selected" width="0" height="0"></canvas>
     </p>
     <canvas id="bin" style="display: none;"></canvas>
     <button id="submit">読み込み</button>
     <p>
-      <textarea id="result" cols="100" rows="10"></textarea>
+      <textarea id="result" cols="100" rows="10">
+所属ギルド,名前,獲得GP,TB,争奪GP
+</textarea
+      >
     </p>
   </body>
 </html>

@@ -1,3 +1,4 @@
+// import Tesseract from "tesseract.js";
 declare var Tesseract: any;
 
 const MIN_WIDTH = 3;
@@ -235,21 +236,42 @@ document.addEventListener("DOMContentLoaded", () => {
         0.2126 * src.data[i] +
         0.7152 * src.data[i + 1] +
         0.0722 * src.data[i + 2];
-      const y = Math.floor(tmp) > 220 ? 255 : 0;
+      const y = Math.floor(tmp) > 200 ? 255 : 0;
       dst.data[i] = dst.data[i + 1] = dst.data[i + 2] = y;
       dst.data[i + 3] = src.data[i + 3];
     }
     binContext.putImageData(dst, 0, 0);
 
-    Tesseract.recognize(imageData, "jpn").then(
-      ({ data: { text } }: { data: { text: string } }) => {
-        const convertedText = new String(
-          [...text]
-            .filter((c) => c !== " ")
-            .map((c) => (convertMap.has(c) ? convertMap.get(c) : c))
-        );
-        result.value += `${convertedText}\n`;
-      }
-    );
+    Tesseract.recognize(imageData, "jpn")
+      .then(textConvert)
+      .then((text: string) => {
+        result.value += `${text}\n`;
+      });
   });
 });
+
+const textConvert = ({
+  data: { text },
+}: {
+  data: { text: string };
+}): string => {
+  const convertedText = [...text]
+    // 余分な空白の削除
+    .filter((c) => c !== " ")
+    // 数字が既知の誤検出を変換
+    .map((c) => (convertMap.has(c) ? convertMap.get(c) : c))
+    .join("");
+
+  console.log(convertedText);
+  const guild = convertedText.match(/\[(.+?)\]/)?.[1] ?? "取得失敗";
+  const name = convertedText.match(/\](.+?)さん/)?.[1] ?? "取得失敗";
+  const tb = convertedText.match(/\+(\d{1,2}\.\d{2})%/m)?.[1] ?? "取得失敗";
+  // 数値のカンマと誤検出のピリオドを除去
+  const tmp = convertedText.replace(/(\d)[.,]+(\d)/g, "$1$2");
+  console.log(tmp)
+  // 獲得GP
+  const acquisition = tmp.match(/^(\d+)GP/m)?.[1] ?? "取得失敗";
+  // 争奪GP
+  const struggle = tmp.match(/GP(\d+)/m)?.[1] ?? "取得失敗";
+  return `${guild},${name},${acquisition},${tb},${struggle}`;
+};
