@@ -86,6 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const binCanvas = document.getElementById("bin") as HTMLCanvasElement;
   const binContext = binCanvas.getContext("2d");
   const result = document.getElementById("result") as HTMLTextAreaElement;
+  const loading = document.getElementById("loading") as HTMLSpanElement;
   if (!srcContext || !selectedContext || !binContext) return;
 
   input.addEventListener("change", () => {
@@ -218,6 +219,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const btn = document.getElementById("submit") as HTMLButtonElement;
   btn.addEventListener("click", () => {
+    loading.style.display = "inline";
+
     const imageData = selectedCanvas.toDataURL();
 
     // 選択範囲の二値化
@@ -246,6 +249,9 @@ document.addEventListener("DOMContentLoaded", () => {
       .then(textConvert)
       .then((text: string) => {
         result.value += `${text}\n`;
+      })
+      .finally(() => {
+        loading.style.display = "none";
       });
   });
 });
@@ -268,7 +274,7 @@ const textConvert = ({
   const tb = convertedText.match(/\+(\d{1,2}\.\d{2})%/m)?.[1] ?? "取得失敗";
   // 数値のカンマと誤検出のピリオドを除去
   const tmp = convertedText.replace(/(\d)[.,]+(\d)/g, "$1$2");
-  console.log(tmp)
+  console.log(tmp);
   // 獲得GP
   const acquisition = tmp.match(/^(\d+)GP/m)?.[1] ?? "取得失敗";
   // 争奪GP
