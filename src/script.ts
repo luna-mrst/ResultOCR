@@ -220,6 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("submit") as HTMLButtonElement;
   btn.addEventListener("click", () => {
     loading.style.display = "inline";
+    btn.setAttribute('disabled', 'true')
 
     const imageData = selectedCanvas.toDataURL();
 
@@ -252,6 +253,7 @@ document.addEventListener("DOMContentLoaded", () => {
       })
       .finally(() => {
         loading.style.display = "none";
+        btn.removeAttribute('disabled')
       });
   });
 });
@@ -269,8 +271,8 @@ const textConvert = ({
     .join("");
 
   console.log(convertedText);
-  const guild = convertedText.match(/\[(.+?)\]/)?.[1] ?? "取得失敗";
-  const name = convertedText.match(/\](.+?)さん/)?.[1] ?? "取得失敗";
+  const guild = convertedText.match(/\[(.{1,8})\](?![とに])/)?.[1] ?? "取得失敗";
+  const name = convertedText.match(/(?<=\])(.{1,8})さん/)?.[1] ?? "取得失敗";
   const tb = convertedText.match(/\+(\d{1,2}\.\d{2})%/m)?.[1] ?? "取得失敗";
   // 数値のカンマと誤検出のピリオドを除去
   const tmp = convertedText.replace(/(\d)[.,]+(\d)/g, "$1$2");
