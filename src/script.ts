@@ -74,6 +74,16 @@ const convertMap = new Map<string, string>([
   ["⓪", "0"],
 ]);
 
+const scale = new (class {
+  private scale: number = 1;
+  setScale(scale: number) {
+    this.scale = scale;
+  }
+  getScale() {
+    return this.scale;
+  }
+})();
+
 document.addEventListener("DOMContentLoaded", () => {
   const input = document.getElementById("input") as HTMLInputElement;
   const image = document.getElementById("img_source") as HTMLImageElement;
@@ -89,6 +99,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const loading = document.getElementById("loading") as HTMLSpanElement;
   if (!srcContext || !selectedContext || !binContext) return;
 
+  const drawSrcImg = () => {
+    srcContext.drawImage(
+      image,
+      0,
+      0,
+      image.width,
+      image.height,
+      0,
+      0,
+      srcCanvas.width,
+      srcCanvas.height
+    );
+  };
+
   input.addEventListener("change", () => {
     const inputFile = input.files?.[0];
     if (!inputFile) return;
@@ -97,10 +121,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     reader.onload = (e) => {
       image.onload = () => {
-        srcCanvas.width = image.width;
-        srcCanvas.height = image.height;
+        scale.setScale(screen.width > image.width ? 1 : 0.5);
+        console.log(scale.getScale());
+        srcCanvas.width = image.width * scale.getScale();
+        srcCanvas.height = image.height * scale.getScale();
 
-        srcContext.drawImage(image, 0, 0);
+        drawSrcImg();
       };
 
       image.src = e.target?.result as string;
@@ -124,8 +150,6 @@ document.addEventListener("DOMContentLoaded", () => {
       rect.top;
     selectedArea.mouseDown(x, y);
 
-    // 矩形の枠色反転
-    const imageData = srcContext?.getImageData(x, y, 1, 1);
     srcContext.strokeStyle = `black`;
     // 線の太さを指定
     srcContext.lineWidth = 2;
@@ -155,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const { startX, startY, endX, endY } = selectedArea.getSelectedArea();
 
     // 元画像の再描画
-    srcContext.drawImage(image, 0, 0);
+    drawSrcImg();
 
     // 矩形の描画
     srcContext.beginPath();
@@ -181,17 +205,20 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
 
     const { startX, startY, endX, endY } = selectedArea.getSelectedArea();
+    const scaleValue = scale.getScale();
 
     // 選択範囲のサイズを取得
-    selectedCanvas.width = binCanvas.width = Math.abs(startX - endX);
-    selectedCanvas.height = binCanvas.height = Math.abs(startY - endY);
+    selectedCanvas.width = binCanvas.width =
+      Math.abs(startX - endX) / scaleValue;
+    selectedCanvas.height = binCanvas.height =
+      Math.abs(startY - endY) / scaleValue;
 
     // 指定サイズ以下は無効
     if (
       selectedCanvas.width < MIN_WIDTH &&
       selectedCanvas.height < MIN_HEIGHT
     ) {
-      srcContext.drawImage(image, 0, 0);
+      drawSrcImg();
       selectedArea.init();
       selectedCanvas.width = selectedCanvas.height = 0;
       return;
@@ -200,10 +227,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // 選択キャンバスへ転送
     selectedContext.drawImage(
       image,
-      Math.min(startX, endX),
-      Math.min(startY, endY),
-      Math.max(startX - endX, endX - startX),
-      Math.max(startY - endY, endY - startY),
+      Math.min(startX, endX) / scaleValue,
+      Math.min(startY, endY) / scaleValue,
+      Math.max(startX - endX, endX - startX) / scaleValue,
+      Math.max(startY - endY, endY - startY) / scaleValue,
       0,
       0,
       selectedCanvas.width,
@@ -220,7 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("submit") as HTMLButtonElement;
   btn.addEventListener("click", () => {
     loading.style.display = "inline";
-    btn.setAttribute('disabled', 'true')
+    btn.setAttribute("disabled", "true");
 
     const imageData = selectedCanvas.toDataURL();
 
@@ -253,7 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
       })
       .finally(() => {
         loading.style.display = "none";
-        btn.removeAttribute('disabled')
+        btn.removeAttribute("disabled");
       });
   });
 });
@@ -271,7 +298,8 @@ const textConvert = ({
     .join("");
 
   console.log(convertedText);
-  const guild = convertedText.match(/\[(.{1,8})\](?![とに])/)?.[1] ?? "取得失敗";
+  const guild =
+    convertedText.match(/\[(.{1,8})\](?![とに])/)?.[1] ?? "取得失敗";
   const name = convertedText.match(/(?<=\])(.{1,8})さん/)?.[1] ?? "取得失敗";
   const tb = convertedText.match(/\+(\d{1,2}\.\d{2})%/m)?.[1] ?? "取得失敗";
   // 数値のカンマと誤検出のピリオドを除去
