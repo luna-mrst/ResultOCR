@@ -11,7 +11,7 @@
     <p>
       <input type="file" id="input" accept="image/*" />
     </p>
-    <img id="img_source" style="display: none;" />
+    <img id="img_source" style="display: none" />
     <p>元ファイル</p>
     <p>
       <canvas id="src" width="0" height="0"></canvas>
@@ -20,10 +20,23 @@
     <p>
       <canvas id="selected" width="0" height="0"></canvas>
     </p>
-    <canvas id="bin" style="display: none;"></canvas>
+    <canvas id="bin" style="display: none"></canvas>
     <p>
       <button id="submit">読み込み</button>
-      <span id="loading" style="display: none;">読み込み中...</span>
+      <span id="loading" style="display: none">読み込み中...</span>
+    </p>
+    <p id="loaded" style="display: none">
+      所属ギルド：<input type="text" id="guild" /> 名前：<input
+        type="text"
+        id="name"
+      />
+      獲得GP：<input type="text" id="acquisition" /> TB：<input
+        type="text"
+        id="tb"
+      />
+      争奪GP：<input type="text" id="struggle" />
+      <br />
+      <button id="ok">ok</button>
     </p>
     <p>
       <textarea id="result" cols="100" rows="10">

@@ -97,6 +97,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const binContext = binCanvas.getContext("2d");
   const result = document.getElementById("result") as HTMLTextAreaElement;
   const loading = document.getElementById("loading") as HTMLSpanElement;
+  const guildInput = document.getElementById("guild") as HTMLInputElement;
+  const nameInput = document.getElementById("name") as HTMLInputElement;
+  const tbInput = document.getElementById("tb") as HTMLInputElement;
+  const acquisitionInput = document.getElementById(
+    "acquisition"
+  ) as HTMLInputElement;
+  const struggleInput = document.getElementById("struggle") as HTMLInputElement;
   if (!srcContext || !selectedContext || !binContext) return;
 
   const drawSrcImg = () => {
@@ -273,23 +280,41 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     binContext.putImageData(dst, 0, 0);
 
-    Tesseract.recognize(imageData, "jpn")
+    (Tesseract.recognize(imageData, "jpn") as Promise<{
+      data: { text: string };
+    }>)
       .then(textConvert)
-      .then((text: string) => {
-        result.value += `${text}\n`;
+      .then(({ guild, name, tb, acquisition, struggle }) => {
+        (document.getElementById(
+          "loaded"
+        ) as HTMLParagraphElement).style.display = "block";
+        guildInput.value = guild;
+        nameInput.value = name;
+        tbInput.value = tb;
+        acquisitionInput.value = acquisition.replace(
+          /(\d)(?=(\d{3})+$)/g,
+          "$1,"
+        );
+        struggleInput.value = struggle.replace(/(\d)(?=(\d{3})+$)/g, "$1,");
       })
       .finally(() => {
         loading.style.display = "none";
         btn.removeAttribute("disabled");
       });
   });
+
+  document.getElementById("ok")?.addEventListener("click", () => {
+    result.value += `${guildInput.value},${
+      nameInput.value
+    },${acquisitionInput.value.replace(/,/g, "")},${
+      tbInput.value
+    },${struggleInput.value.replace(/,/g, "")}\n`;
+    (document.getElementById("loaded") as HTMLParagraphElement).style.display =
+      "none";
+  });
 });
 
-const textConvert = ({
-  data: { text },
-}: {
-  data: { text: string };
-}): string => {
+const textConvert = ({ data: { text } }: { data: { text: string } }) => {
   const convertedText = [...text]
     // 余分な空白の削除
     .filter((c) => c !== " ")
@@ -309,5 +334,6 @@ const textConvert = ({
   const acquisition = tmp.match(/^(\d+)GP/m)?.[1] ?? "取得失敗";
   // 争奪GP
   const struggle = tmp.match(/GP(\d+)/m)?.[1] ?? "取得失敗";
-  return `${guild},${name},${acquisition},${tb},${struggle}`;
+  // return `${guild},${name},${acquisition},${tb},${struggle}`;
+  return { guild, name, tb, acquisition, struggle };
 };
